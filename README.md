@@ -71,12 +71,21 @@ um novo token pelo Playground e atualize o `.env`.
 
 ### Comandos
 
-| Comando                                                                                                        | Descrição                                                                       |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `dart run acervo youtube playlist sort --playlist "https://www.youtube.com/playlist?list=PLAYLIST_ID"`         | Lista a ordem desejada da playlist, dos vídeos mais antigos para os mais novos. |
-| `dart run acervo youtube playlist sort --playlist "https://www.youtube.com/playlist?list=PLAYLIST_ID" --apply` | Aplica a ordenação na playlist no YouTube. Exige `YOUTUBE_ACCESS_TOKEN`.        |
+Listar a ordem desejada, sem alterar a playlist:
 
-Por padrão, o comando faz um dry-run: ele lista a ordem desejada usando
+```sh
+dart run acervo youtube playlist sort --playlist "https://www.youtube.com/playlist?list=PLAYLIST_ID"
+```
+
+Aplicar a ordenação na playlist:
+
+```sh
+dart run acervo youtube playlist sort \
+  --playlist "https://www.youtube.com/playlist?list=PLAYLIST_ID" \
+  --apply
+```
+
+Por padrão, o comando faz um dry-run: ele apenas lista a ordem desejada usando
 `contentDetails.videoPublishedAt`, que é a data em que o vídeo foi publicado no
 YouTube, não a data em que ele foi adicionado na playlist.
 
