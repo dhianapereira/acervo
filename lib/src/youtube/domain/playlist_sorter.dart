@@ -19,9 +19,10 @@ List<YouTubePlaylistItem> sortByVideoPublicationDate(
 
 /// Accepts either a raw playlist id or a YouTube playlist URL.
 String extractYouTubePlaylistId(String input) {
-  final uri = Uri.tryParse(input);
+  final normalizedInput = _normalizeShellEscapedUrl(input);
+  final uri = Uri.tryParse(normalizedInput);
   if (uri == null || !uri.hasScheme) {
-    return input;
+    return normalizedInput;
   }
 
   final list = uri.queryParameters['list'];
@@ -32,4 +33,11 @@ String extractYouTubePlaylistId(String input) {
   }
 
   return list;
+}
+
+String _normalizeShellEscapedUrl(String input) {
+  return input
+      .replaceAll(r'\?', '?')
+      .replaceAll(r'\=', '=')
+      .replaceAll(r'\&', '&');
 }

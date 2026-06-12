@@ -5,13 +5,16 @@ import 'package:http/http.dart' as http;
 
 /// Thin wrapper around the YouTube Data API endpoints used by Acervo.
 class YouTubeApiClient {
-  YouTubeApiClient({required this.apiKey, http.Client? httpClient})
+  YouTubeApiClient({required this.accessToken, http.Client? httpClient})
     : _httpClient = httpClient ?? http.Client();
 
-  final String apiKey;
+  final String accessToken;
   final http.Client _httpClient;
 
   /// Fetches every item from a playlist, following YouTube pagination.
+  ///
+  /// The command uses OAuth for listing and updating so the same credential can
+  /// handle public, unlisted, and private playlists owned by the user.
   Future<List<YouTubePlaylistItem>> fetchPlaylistItems(
     String playlistId,
   ) async {
@@ -23,7 +26,6 @@ class YouTubeApiClient {
         'part': 'snippet,contentDetails',
         'playlistId': playlistId,
         'maxResults': '50',
-        'key': apiKey,
       };
 
       if (pageToken != null) {
@@ -36,6 +38,7 @@ class YouTubeApiClient {
           '/youtube/v3/playlistItems',
           queryParameters,
         ),
+        headers: _authorizationHeaders(),
       );
 
       final body = _decodeResponse(response);
@@ -52,22 +55,15 @@ class YouTubeApiClient {
   }
 
   /// Moves one playlist item to a new zero-based position.
-  ///
-  /// This endpoint requires OAuth. API keys can list public playlist data, but
-  /// cannot modify a user's playlist.
   Future<void> updatePlaylistItemPosition({
     required YouTubePlaylistItem item,
     required int position,
-    required String accessToken,
   }) async {
     final response = await _httpClient.put(
       Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
         'part': 'snippet',
       }),
-      headers: {
-        'authorization': 'Bearer $accessToken',
-        'content-type': 'application/json',
-      },
+      headers: {..._authorizationHeaders(), 'content-type': 'application/json'},
       body: jsonEncode({
         'id': item.id,
         'snippet': {
@@ -97,6 +93,10 @@ class YouTubeApiClient {
 
   void close() {
     _httpClient.close();
+  }
+
+  Map<String, String> _authorizationHeaders() {
+    return {'authorization': 'Bearer $accessToken'};
   }
 }
 

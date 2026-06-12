@@ -34,22 +34,15 @@ class YouTubePlaylistSortCommand extends Command<int> {
   @override
   Future<int> run() async {
     final playlistInput = argResults!['playlist'] as String;
-    final apiKey = env.get('YOUTUBE_API_KEY');
     final shouldApply = argResults!['apply'] as bool;
     final accessToken = env.get('YOUTUBE_ACCESS_TOKEN');
 
-    if (apiKey == null || apiKey.isEmpty) {
-      usageException('Configure YOUTUBE_API_KEY in the .env.');
-    }
-
-    if (shouldApply && (accessToken == null || accessToken.isEmpty)) {
-      usageException(
-        'To use --apply, configure YOUTUBE_ACCESS_TOKEN in the .env.',
-      );
+    if (accessToken == null || accessToken.isEmpty) {
+      usageException('Configure YOUTUBE_ACCESS_TOKEN in the .env.');
     }
 
     final playlistId = extractYouTubePlaylistId(playlistInput);
-    final client = YouTubeApiClient(apiKey: apiKey);
+    final client = YouTubeApiClient(accessToken: accessToken);
 
     try {
       final items = await client.fetchPlaylistItems(playlistId);
@@ -69,11 +62,7 @@ class YouTubePlaylistSortCommand extends Command<int> {
         );
 
         if (shouldApply && item.position != index) {
-          await client.updatePlaylistItemPosition(
-            item: item,
-            position: index,
-            accessToken: accessToken!,
-          );
+          await client.updatePlaylistItemPosition(item: item, position: index);
         }
       }
 
