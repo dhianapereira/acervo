@@ -1,3 +1,18 @@
-# https://dart.dev/tools/private-files
-# Created by `dart pub`
+# System files
+.DS_Store
+
+# Dart and Flutter tooling
 .dart_tool/
+.packages
+.pub/
+build/
+coverage/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE/editor local state
+.idea/
+.vscode/
