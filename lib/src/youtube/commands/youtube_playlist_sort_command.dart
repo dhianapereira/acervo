@@ -43,7 +43,19 @@ class YouTubePlaylistSortCommand extends Command<int> {
     final playlistInput = argResults!['playlist'] as String;
     final shouldApply = argResults!['apply'] as bool;
     final envFilePath = argResults!['env-file'] as String;
-    final accessToken = await _resolveAccessToken(envFilePath);
+    final String? accessToken;
+    try {
+      accessToken = await _resolveAccessToken(envFilePath);
+    } on YouTubeOAuthException catch (error) {
+      stderr.writeln(
+        'Could not refresh YouTube authorization: ${error.message}',
+      );
+      stderr.writeln(
+        'Run "dart run acervo youtube auth --env-file $envFilePath" '
+        'to authorize again.',
+      );
+      return 70;
+    }
 
     if (accessToken == null || accessToken.isEmpty) {
       usageException(
