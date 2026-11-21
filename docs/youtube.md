@@ -115,7 +115,10 @@ cp youtube-categories.example.json youtube-categories.json
 As regras são avaliadas na ordem do arquivo. Título, descrição e tags são
 comparados sem diferenciar maiúsculas de minúsculas; a primeira categoria que
 combinar recebe o vídeo, portanto cada vídeo entra em no máximo uma playlist.
-Vídeos sem correspondência são apenas contabilizados.
+Uma categoria com `"default": true` recebe os vídeos que não combinarem com
+nenhuma regra. Ela não precisa de `keywords` e pode aparecer em qualquer posição
+do arquivo. Se não houver categoria padrão, vídeos sem correspondência serão
+apenas contabilizados.
 
 Faça primeiro uma simulação:
 

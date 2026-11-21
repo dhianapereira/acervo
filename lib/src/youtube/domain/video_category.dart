@@ -8,15 +8,18 @@ class VideoCategory {
     required this.name,
     required this.playlist,
     required this.keywords,
+    this.isDefault = false,
   });
 
   final String name;
   final String playlist;
   final List<String> keywords;
+  final bool isDefault;
 
   factory VideoCategory.fromJson(Map<String, Object?> json) {
     final name = json['name'] as String?;
     final playlist = json['playlist'] as String? ?? name;
+    final isDefault = json['default'] as bool? ?? false;
     final keywords = (json['keywords'] as List<Object?>? ?? const [])
         .whereType<String>()
         .where((keyword) => keyword.trim().isNotEmpty)
@@ -28,7 +31,7 @@ class VideoCategory {
     if (playlist == null || playlist.trim().isEmpty) {
       throw FormatException('Category "$name" must have a playlist name.');
     }
-    if (keywords.isEmpty) {
+    if (keywords.isEmpty && !isDefault) {
       throw FormatException('Category "$name" must have keywords.');
     }
 
@@ -36,6 +39,7 @@ class VideoCategory {
       name: name.trim(),
       playlist: playlist.trim(),
       keywords: keywords.map((keyword) => keyword.toLowerCase()).toList(),
+      isDefault: isDefault,
     );
   }
 }
@@ -52,7 +56,7 @@ List<VideoCategory> loadVideoCategories(String path) {
     );
   }
 
-  return rawCategories
+  final categories = rawCategories
       .map((category) {
         if (category is! Map<String, Object?>) {
           throw const FormatException('Each category must be an object.');
@@ -60,6 +64,10 @@ List<VideoCategory> loadVideoCategories(String path) {
         return VideoCategory.fromJson(category);
       })
       .toList(growable: false);
+  if (categories.where((category) => category.isDefault).length > 1) {
+    throw const FormatException('Only one category can be the default.');
+  }
+  return categories;
 }
 
 Map<VideoCategory, List<YouTubeVideo>> categorizeVideos(
@@ -69,6 +77,9 @@ Map<VideoCategory, List<YouTubeVideo>> categorizeVideos(
   final result = {
     for (final category in categories) category: <YouTubeVideo>[],
   };
+  final defaultCategory = categories
+      .where((category) => category.isDefault)
+      .firstOrNull;
 
   for (final video in videos) {
     final searchableText = [
@@ -77,11 +88,18 @@ Map<VideoCategory, List<YouTubeVideo>> categorizeVideos(
       ...video.tags,
     ].join('\n').toLowerCase();
 
-    for (final category in categories) {
+    var matched = false;
+    for (final category in categories.where(
+      (category) => !category.isDefault,
+    )) {
       if (category.keywords.any(searchableText.contains)) {
         result[category]!.add(video);
+        matched = true;
         break;
       }
+    }
+    if (!matched && defaultCategory != null) {
+      result[defaultCategory]!.add(video);
     }
   }
 

@@ -59,4 +59,29 @@ void main() {
       expect(categorizeVideos(videos, [category])[category], videos);
     },
   );
+
+  test('assigns unmatched videos to the default category', () {
+    final music = VideoCategory(
+      name: 'Music',
+      playlist: 'Music',
+      keywords: const ['music'],
+    );
+    final fallback = VideoCategory(
+      name: 'Other',
+      playlist: 'Other',
+      keywords: const [],
+      isDefault: true,
+    );
+    const video = YouTubeVideo(
+      id: 'video-1',
+      title: 'Unrelated subject',
+      description: '',
+      tags: [],
+    );
+
+    final result = categorizeVideos([video], [fallback, music]);
+
+    expect(result[music], isEmpty);
+    expect(result[fallback], [video]);
+  });
 }
