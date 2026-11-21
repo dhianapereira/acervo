@@ -85,3 +85,53 @@ YouTube, não a data em que ele foi adicionado na playlist.
 
 O comando também aceita o ID puro da playlist, mas a URL costuma ser mais
 prática para copiar direto do navegador.
+
+### Copiar vídeos marcados como não gostei
+
+O YouTube não mostra uma playlist de vídeos marcados como "não gostei", mas a
+API permite consultá-los. Para visualizar o que será sincronizado:
+
+```sh
+dart run acervo youtube playlist sync-disliked
+```
+
+Para criar ou atualizar a playlist privada `Disliked videos`:
+
+```sh
+dart run acervo youtube playlist sync-disliked --apply
+```
+
+Use `--name` para escolher outro nome. O comando não duplica vídeos que já
+estão na playlist e não remove itens existentes.
+
+### Categorizar vídeos curtidos
+
+Copie o exemplo e edite as categorias, playlists e palavras-chave:
+
+```sh
+cp youtube-categories.example.json youtube-categories.json
+```
+
+As regras são avaliadas na ordem do arquivo. Título, descrição e tags são
+comparados sem diferenciar maiúsculas de minúsculas; a primeira categoria que
+combinar recebe o vídeo, portanto cada vídeo entra em no máximo uma playlist.
+Vídeos sem correspondência são apenas contabilizados.
+
+Faça primeiro uma simulação:
+
+```sh
+dart run acervo youtube playlist categorize-liked
+```
+
+Depois crie e atualize as playlists privadas:
+
+```sh
+dart run acervo youtube playlist categorize-liked --apply
+```
+
+Para usar outro arquivo, passe `--config caminho/para/categorias.json`. O
+comando evita duplicatas e não remove vídeos que já estejam nas playlists.
+
+Adicionar um vídeo a uma playlist custa 50 unidades da cota da YouTube Data
+API. Para coleções grandes, talvez seja necessário executar novamente no dia
+seguinte depois que a cota diária for renovada.

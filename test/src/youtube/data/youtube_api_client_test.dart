@@ -20,4 +20,76 @@ void main() {
     expect(requests.single.url.queryParameters.containsKey('key'), isFalse);
     expect(requests.single.headers['authorization'], 'Bearer access-token');
   });
+
+  test('fetches rated videos and follows pagination', () async {
+    var calls = 0;
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        calls += 1;
+        expect(request.url.queryParameters['myRating'], 'dislike');
+        if (calls == 1) {
+          return http.Response(
+            '{"nextPageToken":"next","items":[{"id":"one",'
+            '"snippet":{"title":"One","description":"Desc",'
+            '"tags":["tag"]}}]}',
+            200,
+          );
+        }
+        expect(request.url.queryParameters['pageToken'], 'next');
+        return http.Response(
+          '{"items":[{"id":"two","snippet":{"title":"Two"}}]}',
+          200,
+        );
+      }),
+    );
+
+    final videos = await client.fetchRatedVideos('dislike');
+
+    expect(videos.map((video) => video.id), ['one', 'two']);
+    expect(videos.first.tags, ['tag']);
+    expect(calls, 2);
+  });
+
+  test('creates playlists as private', () async {
+    late http.Request sentRequest;
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        sentRequest = request;
+        return http.Response('{"id":"playlist-id"}', 200);
+      }),
+    );
+
+    final id = await client.createPrivatePlaylist(
+      title: 'Category',
+      description: 'Description',
+    );
+
+    expect(id, 'playlist-id');
+    expect(sentRequest.method, 'POST');
+    expect(sentRequest.url.path, '/youtube/v3/playlists');
+    expect(sentRequest.body, contains('"privacyStatus":"private"'));
+  });
+
+  test('adds a video to a playlist', () async {
+    late http.Request sentRequest;
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        sentRequest = request;
+        return http.Response('{}', 200);
+      }),
+    );
+
+    await client.addVideoToPlaylist(
+      playlistId: 'playlist-id',
+      videoId: 'video-id',
+    );
+
+    expect(sentRequest.method, 'POST');
+    expect(sentRequest.url.path, '/youtube/v3/playlistItems');
+    expect(sentRequest.body, contains('"playlistId":"playlist-id"'));
+    expect(sentRequest.body, contains('"videoId":"video-id"'));
+  });
 }

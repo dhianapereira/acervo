@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:acervo/src/youtube/domain/playlist_item.dart';
+import 'package:acervo/src/youtube/domain/youtube_video.dart';
 import 'package:http/http.dart' as http;
 
 /// Thin wrapper around the YouTube Data API endpoints used by Acervo.
@@ -10,6 +11,110 @@ class YouTubeApiClient {
 
   final String accessToken;
   final http.Client _httpClient;
+
+  /// Fetches all videos liked or disliked by the authenticated user.
+  Future<List<YouTubeVideo>> fetchRatedVideos(String rating) async {
+    if (rating != 'like' && rating != 'dislike') {
+      throw ArgumentError.value(rating, 'rating', 'Must be like or dislike.');
+    }
+
+    final videos = <YouTubeVideo>[];
+    String? pageToken;
+    do {
+      final queryParameters = {
+        'part': 'snippet',
+        'myRating': rating,
+        'maxResults': '50',
+        'pageToken': ?pageToken,
+      };
+      final response = await _httpClient.get(
+        Uri.https('www.googleapis.com', '/youtube/v3/videos', queryParameters),
+        headers: _authorizationHeaders(),
+      );
+      final body = _decodeResponse(response);
+      final items = body['items'] as List<Object?>? ?? const [];
+      videos.addAll(
+        items.cast<Map<String, Object?>>().map(YouTubeVideo.fromJson),
+      );
+      pageToken = body['nextPageToken'] as String?;
+    } while (pageToken != null);
+
+    return videos;
+  }
+
+  /// Returns private playlists owned by the user, keyed by title.
+  Future<Map<String, String>> fetchOwnedPrivatePlaylistsByTitle() async {
+    final playlists = <String, String>{};
+    String? pageToken;
+    do {
+      final queryParameters = {
+        'part': 'snippet,status',
+        'mine': 'true',
+        'maxResults': '50',
+        'pageToken': ?pageToken,
+      };
+      final response = await _httpClient.get(
+        Uri.https(
+          'www.googleapis.com',
+          '/youtube/v3/playlists',
+          queryParameters,
+        ),
+        headers: _authorizationHeaders(),
+      );
+      final body = _decodeResponse(response);
+      final items = body['items'] as List<Object?>? ?? const [];
+      for (final item in items.cast<Map<String, Object?>>()) {
+        final snippet = item['snippet'] as Map<String, Object?>? ?? {};
+        final status = item['status'] as Map<String, Object?>? ?? {};
+        final title = snippet['title'] as String?;
+        final id = item['id'] as String?;
+        if (title != null &&
+            id != null &&
+            status['privacyStatus'] == 'private') {
+          playlists.putIfAbsent(title, () => id);
+        }
+      }
+      pageToken = body['nextPageToken'] as String?;
+    } while (pageToken != null);
+    return playlists;
+  }
+
+  Future<String> createPrivatePlaylist({
+    required String title,
+    required String description,
+  }) async {
+    final response = await _httpClient.post(
+      Uri.https('www.googleapis.com', '/youtube/v3/playlists', {
+        'part': 'snippet,status',
+      }),
+      headers: {..._authorizationHeaders(), 'content-type': 'application/json'},
+      body: jsonEncode({
+        'snippet': {'title': title, 'description': description},
+        'status': {'privacyStatus': 'private'},
+      }),
+    );
+    final body = _decodeResponse(response);
+    return body['id'] as String;
+  }
+
+  Future<void> addVideoToPlaylist({
+    required String playlistId,
+    required String videoId,
+  }) async {
+    final response = await _httpClient.post(
+      Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
+        'part': 'snippet',
+      }),
+      headers: {..._authorizationHeaders(), 'content-type': 'application/json'},
+      body: jsonEncode({
+        'snippet': {
+          'playlistId': playlistId,
+          'resourceId': {'kind': 'youtube#video', 'videoId': videoId},
+        },
+      }),
+    );
+    _decodeResponse(response);
+  }
 
   /// Fetches every item from a playlist, following YouTube pagination.
   ///
@@ -52,6 +157,36 @@ class YouTubeApiClient {
     } while (pageToken != null);
 
     return items;
+  }
+
+  Future<Set<String>> fetchPlaylistVideoIds(String playlistId) async {
+    final videoIds = <String>{};
+    String? pageToken;
+    do {
+      final queryParameters = {
+        'part': 'contentDetails',
+        'playlistId': playlistId,
+        'maxResults': '50',
+        'pageToken': ?pageToken,
+      };
+      final response = await _httpClient.get(
+        Uri.https(
+          'www.googleapis.com',
+          '/youtube/v3/playlistItems',
+          queryParameters,
+        ),
+        headers: _authorizationHeaders(),
+      );
+      final body = _decodeResponse(response);
+      final items = body['items'] as List<Object?>? ?? const [];
+      for (final item in items.cast<Map<String, Object?>>()) {
+        final details = item['contentDetails'] as Map<String, Object?>? ?? {};
+        final videoId = details['videoId'] as String?;
+        if (videoId != null) videoIds.add(videoId);
+      }
+      pageToken = body['nextPageToken'] as String?;
+    } while (pageToken != null);
+    return videoIds;
   }
 
   /// Moves one playlist item to a new zero-based position.

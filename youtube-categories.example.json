@@ -1,0 +1,19 @@
+{
+  "categories": [
+    {
+      "name": "Programação",
+      "playlist": "Curtidos - Programação",
+      "keywords": ["dart", "flutter", "programação", "software", "coding"]
+    },
+    {
+      "name": "Música",
+      "playlist": "Curtidos - Música",
+      "keywords": ["music", "música", "official audio", "live session"]
+    },
+    {
+      "name": "Culinária",
+      "playlist": "Curtidos - Culinária",
+      "keywords": ["receita", "cozinha", "recipe", "cooking"]
+    }
+  ]
+}

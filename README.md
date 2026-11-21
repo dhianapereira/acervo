@@ -46,6 +46,19 @@ dart run acervo youtube playlist sort \
   --apply
 ```
 
+Sincronizar os vídeos marcados como não gostei em uma playlist privada:
+
+```sh
+dart run acervo youtube playlist sync-disliked --apply
+```
+
+Separar vídeos curtidos em playlists privadas usando regras locais:
+
+```sh
+cp youtube-categories.example.json youtube-categories.json
+dart run acervo youtube playlist categorize-liked --apply
+```
+
 ## Licença
 
 Este projeto está licenciado sob os termos descritos em [LICENSE](./LICENSE).

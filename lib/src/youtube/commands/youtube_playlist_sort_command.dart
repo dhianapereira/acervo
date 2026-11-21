@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
-import 'package:acervo/src/cli/config/env_file.dart';
 import 'package:acervo/src/cli/config/environment.dart';
+import 'package:acervo/src/youtube/data/youtube_access_token_resolver.dart';
 import 'package:acervo/src/youtube/data/youtube_api_client.dart';
 import 'package:acervo/src/youtube/data/youtube_oauth_client.dart';
 import 'package:acervo/src/youtube/domain/playlist_sorter.dart';
@@ -45,7 +45,10 @@ class YouTubePlaylistSortCommand extends Command<int> {
     final envFilePath = argResults!['env-file'] as String;
     final String? accessToken;
     try {
-      accessToken = await _resolveAccessToken(envFilePath);
+      accessToken = await resolveYouTubeAccessToken(
+        env: env,
+        envFilePath: envFilePath,
+      );
     } on YouTubeOAuthException catch (error) {
       stderr.writeln(
         'Could not refresh YouTube authorization: ${error.message}',
@@ -103,36 +106,6 @@ class YouTubePlaylistSortCommand extends Command<int> {
       return 70;
     } finally {
       client.close();
-    }
-  }
-
-  Future<String?> _resolveAccessToken(String envFilePath) async {
-    final refreshToken = env.get('YOUTUBE_REFRESH_TOKEN');
-    final clientId = env.get('YOUTUBE_CLIENT_ID');
-    final clientSecret = env.get('YOUTUBE_CLIENT_SECRET');
-
-    if (refreshToken == null ||
-        refreshToken.isEmpty ||
-        clientId == null ||
-        clientId.isEmpty ||
-        clientSecret == null ||
-        clientSecret.isEmpty) {
-      return env.get('YOUTUBE_ACCESS_TOKEN');
-    }
-
-    final oauthClient = YouTubeOAuthClient();
-    try {
-      final token = await oauthClient.refreshAccessToken(
-        clientId: clientId,
-        clientSecret: clientSecret,
-        refreshToken: refreshToken,
-      );
-      EnvFile(
-        envFilePath,
-      ).upsertAll({'YOUTUBE_ACCESS_TOKEN': token.accessToken});
-      return token.accessToken;
-    } finally {
-      oauthClient.close();
     }
   }
 }
