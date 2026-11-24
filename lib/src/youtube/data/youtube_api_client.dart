@@ -220,9 +220,13 @@ class YouTubeApiClient {
 
     final error = decoded['error'] as Map<String, Object?>?;
     final message = error?['message'] as String?;
+    final errors = error?['errors'] as List<Object?>?;
+    final firstError = errors?.whereType<Map<String, Object?>>().firstOrNull;
+    final reason = firstError?['reason'] as String?;
     throw YouTubeApiException(
       response.statusCode,
       message ?? 'The YouTube API returned an error without a message.',
+      reason: reason,
     );
   }
 
@@ -236,10 +240,14 @@ class YouTubeApiClient {
 }
 
 class YouTubeApiException implements Exception {
-  const YouTubeApiException(this.statusCode, this.message);
+  const YouTubeApiException(this.statusCode, this.message, {this.reason});
 
   final int statusCode;
   final String message;
+  final String? reason;
+
+  bool get isPlaylistItemDuplicate =>
+      statusCode == 409 && reason == 'playlistItemDuplicate';
 
   @override
   String toString() => 'YouTubeApiException($statusCode): $message';

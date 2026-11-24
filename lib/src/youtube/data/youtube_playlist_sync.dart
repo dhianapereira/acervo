@@ -40,8 +40,18 @@ Future<PlaylistSyncResult> syncPrivatePlaylist({
       alreadyPresent += 1;
       continue;
     }
-    await client.addVideoToPlaylist(playlistId: playlistId, videoId: video.id);
-    added += 1;
+    try {
+      await client.addVideoToPlaylist(
+        playlistId: playlistId,
+        videoId: video.id,
+      );
+      added += 1;
+    } on YouTubeApiException catch (error) {
+      // The list and insert requests are not atomic. Another sync may insert
+      // the video between them, in which case the desired state was reached.
+      if (!error.isPlaylistItemDuplicate) rethrow;
+      alreadyPresent += 1;
+    }
   }
 
   return PlaylistSyncResult(

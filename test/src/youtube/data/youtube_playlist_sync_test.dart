@@ -46,4 +46,75 @@ void main() {
     expect(result.alreadyPresent, 1);
     expect(insertedVideoIds, ['new']);
   });
+
+  test('treats a duplicate insert conflict as already present', () async {
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response('{"items":[]}', 200);
+        }
+        return http.Response(
+          '{"error":{"message":"Video already in playlist",'
+          '"errors":[{"reason":"playlistItemDuplicate"}]}}',
+          409,
+        );
+      }),
+    );
+
+    final result = await syncPrivatePlaylist(
+      client: client,
+      playlistsByTitle: {'Destination': 'playlist-id'},
+      title: 'Destination',
+      description: 'Description',
+      videos: const [
+        YouTubeVideo(
+          id: 'duplicate',
+          title: 'Duplicate',
+          description: '',
+          tags: [],
+        ),
+      ],
+    );
+
+    expect(result.added, 0);
+    expect(result.alreadyPresent, 1);
+  });
+
+  test('does not swallow unrelated conflicts', () async {
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response('{"items":[]}', 200);
+        }
+        return http.Response(
+          '{"error":{"message":"Conflict",'
+          '"errors":[{"reason":"someOtherConflict"}]}}',
+          409,
+        );
+      }),
+    );
+
+    final sync = syncPrivatePlaylist(
+      client: client,
+      playlistsByTitle: {'Destination': 'playlist-id'},
+      title: 'Destination',
+      description: 'Description',
+      videos: const [
+        YouTubeVideo(id: 'video', title: 'Video', description: '', tags: []),
+      ],
+    );
+
+    await expectLater(
+      sync,
+      throwsA(
+        isA<YouTubeApiException>().having(
+          (error) => error.reason,
+          'reason',
+          'someOtherConflict',
+        ),
+      ),
+    );
+  });
 }
