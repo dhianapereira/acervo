@@ -117,4 +117,47 @@ void main() {
       ),
     );
   });
+
+  test('removes videos that are missing from an exact sync', () async {
+    final deletedItemIds = <String>[];
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(
+            '{"items":['
+            '{"id":"keep-item","snippet":{"playlistId":"playlist-id",'
+            '"title":"Keep","position":0},"contentDetails":{'
+            '"videoId":"keep","videoPublishedAt":"2024-01-01T00:00:00Z"}},'
+            '{"id":"stale-item","snippet":{"playlistId":"playlist-id",'
+            '"title":"Stale","position":1},"contentDetails":{'
+            '"videoId":"stale","videoPublishedAt":"2024-01-01T00:00:00Z"}}'
+            ']}',
+            200,
+          );
+        }
+        if (request.method == 'DELETE') {
+          deletedItemIds.add(request.url.queryParameters['id']!);
+          return http.Response('', 204);
+        }
+        fail('Unexpected ${request.method} request');
+      }),
+    );
+
+    final result = await syncPrivatePlaylist(
+      client: client,
+      playlistsByTitle: {'Destination': 'playlist-id'},
+      title: 'Destination',
+      description: 'Description',
+      videos: const [
+        YouTubeVideo(id: 'keep', title: 'Keep', description: '', tags: []),
+      ],
+      removeMissing: true,
+    );
+
+    expect(result.added, 0);
+    expect(result.alreadyPresent, 1);
+    expect(result.removed, 1);
+    expect(deletedItemIds, ['stale-item']);
+  });
 }

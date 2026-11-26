@@ -92,4 +92,54 @@ void main() {
     expect(sentRequest.body, contains('"playlistId":"playlist-id"'));
     expect(sentRequest.body, contains('"videoId":"video-id"'));
   });
+
+  test('deletes a playlist item', () async {
+    late http.Request sentRequest;
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      httpClient: MockClient((request) async {
+        sentRequest = request;
+        return http.Response('', 204);
+      }),
+    );
+
+    await client.deletePlaylistItem('playlist-item-id');
+
+    expect(sentRequest.method, 'DELETE');
+    expect(sentRequest.url.path, '/youtube/v3/playlistItems');
+    expect(sentRequest.url.queryParameters['id'], 'playlist-item-id');
+  });
+
+  test('retries an aborted playlist mutation conflict', () async {
+    var calls = 0;
+    final delays = <Duration>[];
+    final client = YouTubeApiClient(
+      accessToken: 'token',
+      delay: (duration) async => delays.add(duration),
+      httpClient: MockClient((request) async {
+        calls += 1;
+        if (calls < 3) {
+          return http.Response(
+            '{"error":{"message":"The operation was aborted."}}',
+            409,
+          );
+        }
+        return http.Response('', 204);
+      }),
+    );
+
+    await client.deletePlaylistItem('playlist-item-id');
+
+    expect(calls, 3);
+    expect(delays, const [
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 500),
+    ]);
+  });
+
+  test('includes the API reason when formatting an error', () {
+    const error = YouTubeApiException(409, 'Conflict', reason: 'aborted');
+
+    expect(error.toString(), 'YouTubeApiException(409, aborted): Conflict');
+  });
 }

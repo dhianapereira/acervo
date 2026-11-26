@@ -133,7 +133,8 @@ dart run acervo youtube playlist categorize-liked --apply
 ```
 
 Para usar outro arquivo, passe `--config caminho/para/categorias.json`. O
-comando evita duplicatas e não remove vídeos que já estejam nas playlists.
+comando evita duplicatas e remove das playlists gerenciadas os vídeos que não
+estão mais curtidos ou que passaram a pertencer a outra categoria.
 
 Adicionar um vídeo a uma playlist custa 50 unidades da cota da YouTube Data
 API. Para coleções grandes, talvez seja necessário executar novamente no dia

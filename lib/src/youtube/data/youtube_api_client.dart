@@ -6,11 +6,16 @@ import 'package:http/http.dart' as http;
 
 /// Thin wrapper around the YouTube Data API endpoints used by Acervo.
 class YouTubeApiClient {
-  YouTubeApiClient({required this.accessToken, http.Client? httpClient})
-    : _httpClient = httpClient ?? http.Client();
+  YouTubeApiClient({
+    required this.accessToken,
+    http.Client? httpClient,
+    Future<void> Function(Duration)? delay,
+  }) : _httpClient = httpClient ?? http.Client(),
+       _delay = delay ?? Future<void>.delayed;
 
   final String accessToken;
   final http.Client _httpClient;
+  final Future<void> Function(Duration) _delay;
 
   /// Fetches all videos liked or disliked by the authenticated user.
   Future<List<YouTubeVideo>> fetchRatedVideos(String rating) async {
@@ -101,18 +106,33 @@ class YouTubeApiClient {
     required String playlistId,
     required String videoId,
   }) async {
-    final response = await _httpClient.post(
-      Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
-        'part': 'snippet',
-      }),
-      headers: {..._authorizationHeaders(), 'content-type': 'application/json'},
-      body: jsonEncode({
-        'snippet': {
-          'playlistId': playlistId,
-          'resourceId': {'kind': 'youtube#video', 'videoId': videoId},
-        },
-      }),
+    final uri = Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
+      'part': 'snippet',
+    });
+    final headers = {
+      ..._authorizationHeaders(),
+      'content-type': 'application/json',
+    };
+    final body = jsonEncode({
+      'snippet': {
+        'playlistId': playlistId,
+        'resourceId': {'kind': 'youtube#video', 'videoId': videoId},
+      },
+    });
+    final response = await _sendWithConflictRetry(
+      () => _httpClient.post(uri, headers: headers, body: body),
     );
+    _decodeResponse(response);
+  }
+
+  Future<void> deletePlaylistItem(String playlistItemId) async {
+    final uri = Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
+      'id': playlistItemId,
+    });
+    final response = await _sendWithConflictRetry(
+      () => _httpClient.delete(uri, headers: _authorizationHeaders()),
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
     _decodeResponse(response);
   }
 
@@ -194,19 +214,23 @@ class YouTubeApiClient {
     required YouTubePlaylistItem item,
     required int position,
   }) async {
-    final response = await _httpClient.put(
-      Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
-        'part': 'snippet',
-      }),
-      headers: {..._authorizationHeaders(), 'content-type': 'application/json'},
-      body: jsonEncode({
-        'id': item.id,
-        'snippet': {
-          'playlistId': item.playlistId,
-          'position': position,
-          'resourceId': {'kind': 'youtube#video', 'videoId': item.videoId},
-        },
-      }),
+    final uri = Uri.https('www.googleapis.com', '/youtube/v3/playlistItems', {
+      'part': 'snippet',
+    });
+    final headers = {
+      ..._authorizationHeaders(),
+      'content-type': 'application/json',
+    };
+    final body = jsonEncode({
+      'id': item.id,
+      'snippet': {
+        'playlistId': item.playlistId,
+        'position': position,
+        'resourceId': {'kind': 'youtube#video', 'videoId': item.videoId},
+      },
+    });
+    final response = await _sendWithConflictRetry(
+      () => _httpClient.put(uri, headers: headers, body: body),
     );
 
     _decodeResponse(response);
@@ -230,6 +254,35 @@ class YouTubeApiClient {
     );
   }
 
+  Future<http.Response> _sendWithConflictRetry(
+    Future<http.Response> Function() send,
+  ) async {
+    const retryDelays = [
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 500),
+      Duration(seconds: 1),
+    ];
+    for (var attempt = 0; ; attempt += 1) {
+      final response = await send();
+      if (!_isAbortedConflict(response) || attempt == retryDelays.length) {
+        return response;
+      }
+      await _delay(retryDelays[attempt]);
+    }
+  }
+
+  bool _isAbortedConflict(http.Response response) {
+    if (response.statusCode != 409) return false;
+    try {
+      final body = jsonDecode(response.body) as Map<String, Object?>;
+      final error = body['error'] as Map<String, Object?>?;
+      final message = error?['message'] as String?;
+      return message?.toLowerCase() == 'the operation was aborted.';
+    } on FormatException {
+      return false;
+    }
+  }
+
   void close() {
     _httpClient.close();
   }
@@ -250,5 +303,7 @@ class YouTubeApiException implements Exception {
       statusCode == 409 && reason == 'playlistItemDuplicate';
 
   @override
-  String toString() => 'YouTubeApiException($statusCode): $message';
+  String toString() =>
+      'YouTubeApiException($statusCode${reason == null ? '' : ', $reason'}): '
+      '$message';
 }

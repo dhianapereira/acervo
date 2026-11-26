@@ -7,12 +7,14 @@ class PlaylistSyncResult {
     required this.created,
     required this.added,
     required this.alreadyPresent,
+    required this.removed,
   });
 
   final String playlistId;
   final bool created;
   final int added;
   final int alreadyPresent;
+  final int removed;
 }
 
 Future<PlaylistSyncResult> syncPrivatePlaylist({
@@ -21,6 +23,7 @@ Future<PlaylistSyncResult> syncPrivatePlaylist({
   required String title,
   required String description,
   required Iterable<YouTubeVideo> videos,
+  bool removeMissing = false,
 }) async {
   var playlistId = playlistsByTitle[title];
   final created = playlistId == null;
@@ -30,12 +33,28 @@ Future<PlaylistSyncResult> syncPrivatePlaylist({
   );
   playlistsByTitle[title] = playlistId;
 
+  final desiredVideos = videos.toList();
+  final desiredVideoIds = desiredVideos.map((video) => video.id).toSet();
+  final existingItems = !created && removeMissing
+      ? await client.fetchPlaylistItems(playlistId)
+      : const <Never>[];
   final existingVideoIds = created
       ? <String>{}
+      : removeMissing
+      ? existingItems.map((item) => item.videoId).toSet()
       : await client.fetchPlaylistVideoIds(playlistId);
+  var removed = 0;
+  if (removeMissing) {
+    for (final item in existingItems) {
+      if (desiredVideoIds.contains(item.videoId)) continue;
+      await client.deletePlaylistItem(item.id);
+      existingVideoIds.remove(item.videoId);
+      removed += 1;
+    }
+  }
   var added = 0;
   var alreadyPresent = 0;
-  for (final video in videos) {
+  for (final video in desiredVideos) {
     if (!existingVideoIds.add(video.id)) {
       alreadyPresent += 1;
       continue;
@@ -59,5 +78,6 @@ Future<PlaylistSyncResult> syncPrivatePlaylist({
     created: created,
     added: added,
     alreadyPresent: alreadyPresent,
+    removed: removed,
   );
 }

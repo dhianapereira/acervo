@@ -97,7 +97,11 @@ class YouTubePlaylistCategorizeLikedCommand extends Command<int> {
 
       final playlists = await client.fetchOwnedPrivatePlaylistsByTitle();
       for (final entry in categorized.entries) {
-        if (entry.value.isEmpty) continue;
+        // Do not create an empty playlist, but do clean an existing managed
+        // playlist when none of its old videos are still liked/in this category.
+        if (entry.value.isEmpty && !playlists.containsKey(entry.key.playlist)) {
+          continue;
+        }
         final result = await syncPrivatePlaylist(
           client: client,
           playlistsByTitle: playlists,
@@ -105,10 +109,12 @@ class YouTubePlaylistCategorizeLikedCommand extends Command<int> {
           description:
               'Liked videos in the ${entry.key.name} category, synchronized by Acervo.',
           videos: entry.value,
+          removeMissing: true,
         );
         stdout.writeln(
           '"${entry.key.playlist}": ${result.added} added, '
-          '${result.alreadyPresent} already present.',
+          '${result.alreadyPresent} already present, '
+          '${result.removed} removed.',
         );
       }
       return 0;
